@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "448078679925",
+    "project_id": "studychessapp",
+    "storage_bucket": "studychessapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:448078679925:android:0649e6a98d16ac17ac4d3c",
+        "android_client_info": {
+          "package_name": "com.example.studychessapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGQcbpw8FvmPemXGZ30X4raF0nfVgucGY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
