@@ -1,20 +1,22 @@
 package com.example.studychessapp.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.studychessapp.network.AuthViewModel
 import com.example.studychessapp.screens.HomeScreen
 import com.example.studychessapp.ui.ChessBoard
 import com.example.studychessapp.screens.LessonScreen
+import com.example.studychessapp.screens.LessonListScreen // ✅ THÊM IMPORT
 import com.example.studychessapp.screens.PlayWithAIScreen
 import com.example.studychessapp.screens.PracticeBoardScreen
 import com.example.studychessapp.screens.ProfileScreen
 
 @Composable
 fun NavGraph(
-
     authViewModel: AuthViewModel
 ) {
     val navController = rememberNavController()
@@ -25,29 +27,30 @@ fun NavGraph(
             HomeScreen(navController = navController, authViewModel = authViewModel)
         }
 
-        // ✅ 2. PROFILE SCREEN (Tuyến bị thiếu, gây crash)
         composable("profile") {
-            // Giả định ProfileScreen cần AuthViewModel
             ProfileScreen(navController = navController, authViewModel = authViewModel)
         }
 
-        // 2. BÀI HỌC (Danh sách)
-        composable("lesson") {
-
-            LessonScreen(navController = navController)
+        // ✅ SỬA "lesson" thành "lesson_list"
+        composable("lesson_list") {
+            LessonListScreen(navController = navController)
         }
 
-        // 3. BÀN CỜ LUYỆN TẬP
-        composable("board") {
+        // ✅ THÊM TUYẾN MỚI cho chi tiết bài học
+        composable(
+            "lesson_detail/{lessonId}",
+            arguments = listOf(navArgument("lessonId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val lessonId = backStackEntry.arguments?.getString("lessonId")
+            LessonScreen(navController = navController, lessonId = lessonId)
+        }
 
+        composable("board") {
             PracticeBoardScreen(navController = navController)
         }
 
-        // 4. CHƠI VỚI AI
         composable("play_ai") {
             PlayWithAIScreen(navController = navController)
         }
-
     }
 }
-

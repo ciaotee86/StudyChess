@@ -3,6 +3,8 @@ package com.example.studychessapp.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -12,35 +14,51 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.studychessapp.model.LessonRepository // ✅ Thêm import
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LessonScreen(navController: NavHostController) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
+fun LessonScreen(navController: NavHostController, lessonId: String?) {
+    // Tìm bài học dựa trên ID
+    val lesson = LessonRepository.lessons.find { it.id == lessonId }
+        ?: LessonRepository.lessons.first() // Lấy bài đầu tiên nếu không tìm thấy
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(lesson.title) }, // ✅ Dùng tiêu đề động
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Trở về")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
         Column(
-            modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.Start
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("📖 Bài học: Cách di chuyển quân mã",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary)
-
-            Spacer(Modifier.height(12.dp))
-            Text("Quân mã đi hình chữ L: 2 ô theo một hướng và 1 ô vuông góc.", fontSize = 18.sp)
-            Spacer(Modifier.height(8.dp))
-            Text("Ví dụ: từ ô E4, quân mã có thể đi đến các ô sau:", fontSize = 18.sp)
-            Spacer(Modifier.height(8.dp))
-
-            val knightMoves = listOf("C5", "C3", "D2", "F2", "G3", "G5", "F6", "D6")
-            knightMoves.forEach { move -> Text("• $move", fontSize = 16.sp) }
-
-            Spacer(Modifier.height(24.dp))
-            Text("Hãy tưởng tượng quân mã đang đứng ở ô E4 và nhảy đến các vị trí này!",
-                style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // ✅ Hiển thị nội dung bài học động
+                    Text(
+                        lesson.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(lesson.content, fontSize = 18.sp)
+                }
+            }
         }
     }
 }

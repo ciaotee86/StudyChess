@@ -25,4 +25,13 @@ interface ApiServices {
         @Field("email") email: String,
         @Field("password") password: String
     ): Response<ApiResponse>
+
+    // ✅ HÀM MỚI: CẬP NHẬT AVATAR
+    // (Giả sử API của bạn nhận 'userId' và 'file')
+    @Multipart
+    @POST("updateAvatar.php")
+    suspend fun updateAvatar(
+        @Part("userId") userId: RequestBody,
+        @Part file: MultipartBody.Part
+    ): Response<ApiResponse> // API nên trả về ApiResponse với UserData đã cập nhật
 }

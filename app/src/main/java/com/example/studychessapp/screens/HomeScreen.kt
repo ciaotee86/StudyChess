@@ -50,7 +50,7 @@ fun HomeScreen(
         ) {
             // --- 1. BANNER VÀ TEXT ---
             Image(
-                painter = painterResource(id = R.drawable.chess_bannner),
+                painter = painterResource(id = R.drawable.logodhkt),
                 contentDescription = "Chess Banner",
                 modifier = Modifier
                     .height(350.dp)
@@ -67,7 +67,7 @@ fun HomeScreen(
                 // ĐÃ ĐĂNG NHẬP: HIỆN CHỨC NĂNG + ĐĂNG XUẤT
 
                 // Nút 1: Bài học
-                Button(onClick = { navController.navigate("lesson") },
+                Button(onClick = { navController.navigate("lesson_list") }, // ✅ SỬA Ở ĐÂY
                     modifier = Modifier.fillMaxWidth().height(60.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) { Text("📖 Bài học", fontSize = 18.sp) }

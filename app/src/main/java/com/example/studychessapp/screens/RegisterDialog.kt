@@ -5,6 +5,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image // ✅ THÊM IMPORT
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -12,10 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource // ✅ THÊM IMPORT
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.studychessapp.R // ✅ THÊM IMPORT
 import com.example.studychessapp.network.ApiServices
 import com.example.studychessapp.network.RetrofitClient
 import kotlinx.coroutines.launch
@@ -54,14 +57,21 @@ fun RegisterDialog(onDismiss: () -> Unit) {
                 Text("Đăng ký", style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(16.dp))
 
+                // ✅ THÊM LOGO TẠI ĐÂY
+                Image(
+                    painter = painterResource(id = R.drawable.logodhkt),
+                    contentDescription = "Logo",
+                    modifier = Modifier
+                        .height(100.dp) // Bạn có thể điều chỉnh kích thước
+                        .padding(bottom = 8.dp)
+                )
+
                 TextField(value = username, onValueChange = { username = it }, label = { Text("Tên") })
                 TextField(value = email, onValueChange = { email = it }, label = { Text("Email") })
                 TextField(
-                        value = sdt,
-                        onValueChange = { sdt = it },
-                        label = { Text("SĐT")},
-//                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-//                        visualTransformation = PasswordVisualTransformation()
+                    value = sdt,
+                    onValueChange = { sdt = it },
+                    label = { Text("SĐT")},
                 )
                 TextField(
                     value = password, onValueChange = { password = it },
