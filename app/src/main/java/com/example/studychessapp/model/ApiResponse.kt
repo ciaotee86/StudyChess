@@ -17,20 +17,14 @@ data class ApiResponse(
 )
 
 data class UserData(
-    @SerializedName("id")
-    val id: Int,
-    @SerializedName("ten_dang_nhap")
-    val tenDangNhap: String?,
-
+    @SerializedName("id") val id: Int,
+    @SerializedName("ten_dang_nhap") val tenDangNhap: String?,
     val email: String?,
-    @SerializedName("so_dien_thoai")
-    val soDienThoai: String?,
-    @SerializedName("ho_ten")
-    val hoTen: String?,
-    @SerializedName("duong_dan_anh")
-    val avatarUrl: String? = null,
-    @SerializedName("thoi_gian_tham_gia")
-    val thoiGianThamGia: String? = null
+    @SerializedName("so_dien_thoai") val soDienThoai: String?,
+    @SerializedName("ho_ten") val hoTen: String?,
+    @SerializedName("duong_dan_anh") val avatarUrl: String? = null,
+    @SerializedName("thoi_gian_tham_gia") val thoiGianThamGia: String? = null,
+    @SerializedName("ngay_tao_goc") val ngayTaoGoc: String? = null // Thêm trường này nếu Login trả về
 )
 
 // --- 2. DATA CLASS USERSESSION (Thêm userData: UserData?) ---

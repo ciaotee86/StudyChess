@@ -212,6 +212,7 @@ fun ProfileScreen(
             ProfileDetail(label = "Họ tên", value = userData?.hoTen ?: "N/A")
             ProfileDetail(label = "Email", value = userData?.email ?: "N/A")
             ProfileDetail(label = "SĐT", value = userData?.soDienThoai ?: "N/A")
+            ProfileDetail(label = "Ngày đăng ký", value = userData?.ngayTaoGoc ?: "N/A")
             ProfileDetail(
                 label = "Đã tham gia",
                 value = userData?.thoiGianThamGia ?: "N/A" // Lấy thẳng từ UserData
@@ -285,87 +286,101 @@ fun ProfileDetail(label: String, value: String) {
     }
 }
 
+// Trong ProfileScreen.kt
+
 private suspend fun generateAndSavePdf(
     context: Context,
     imageLoader: ImageLoader,
     data: UserData,
     outputStream: FileOutputStream
 ) {
-    // 1. Tải ảnh đại diện (nếu có)
+    val pdfDocument = PdfDocument()
+    val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 size
+    val page = pdfDocument.startPage(pageInfo)
+    val canvas = page.canvas
+
+    // --- SETUP PAINTS ---
+    val titlePaint = Paint().apply {
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textSize = 24f
+        color = android.graphics.Color.BLUE
+        textAlign = Paint.Align.CENTER
+    }
+
+    val labelPaint = Paint().apply {
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textSize = 14f
+        color = android.graphics.Color.DKGRAY
+    }
+
+    val valuePaint = Paint().apply {
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        textSize = 14f
+        color = android.graphics.Color.BLACK
+    }
+
+    val borderPaint = Paint().apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 2f
+        color = android.graphics.Color.BLACK
+    }
+
+    // --- VẼ KHUNG VIỀN ---
+    canvas.drawRect(20f, 20f, 575f, 822f, borderPaint)
+
+    // --- VẼ TIÊU ĐỀ ---
+    canvas.drawText("HỒ SƠ CÁ NHÂN STUDY CHESS", 595f / 2, 80f, titlePaint)
+
+    var yPos = 140f
+    val startX = 60f
+
+    // --- VẼ AVATAR (Căn giữa) ---
     val avatarBitmap: Bitmap? = try {
         if (data.avatarUrl != null) {
             val request = ImageRequest.Builder(context)
                 .data(data.avatarUrl)
-                .allowHardware(false) // Cần thiết để vẽ lên canvas PDF
+                .allowHardware(false)
                 .build()
             val result = (imageLoader.execute(request) as SuccessResult).drawable
             (result as BitmapDrawable).bitmap
-        } else {
-            null
-        }
-    } catch (e: Exception) {
-        // ✅ THÊM DÒNG NÀY ĐỂ XEM LỖI TRONG LOGCAT
-        Log.e("PdfAvatarError", "Không thể tải ảnh đại diện cho PDF: ${e.message}")
-        null // Vẫn trả về null để không làm crash
+        } else null
+    } catch (e: Exception) { null }
+
+    if (avatarBitmap != null) {
+        val scaledBitmap = Bitmap.createScaledBitmap(avatarBitmap, 120, 120, true)
+        // Vẽ ảnh ở giữa trang
+        canvas.drawBitmap(scaledBitmap, (595f - 120f) / 2, yPos, null)
+        yPos += 150f
+    } else {
+        yPos += 20f
     }
 
-    // 2. Tạo tài liệu PDF
-    val pdfDocument = PdfDocument()
-    val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // Trang A4
-    val page = pdfDocument.startPage(pageInfo)
-    val canvas = page.canvas
-
-    // 3. Định nghĩa các kiểu chữ (Paint)
-    val titlePaint = Paint().apply {
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textSize = 20f
-        color = android.graphics.Color.BLACK
-    }
-    val labelPaint = Paint().apply {
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textSize = 12f
-        color = android.graphics.Color.GRAY
-    }
-    val valuePaint = Paint().apply {
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        textSize = 12f
-        color = android.graphics.Color.BLACK
+    // --- VẼ THÔNG TIN CHI TIẾT ---
+    fun drawLineInfo(label: String, value: String?) {
+        canvas.drawText(label, startX, yPos, labelPaint)
+        // Vẽ giá trị cách lề trái 200 đơn vị
+        canvas.drawText(value ?: "Chưa cập nhật", startX + 150f, yPos, valuePaint)
+        // Vẽ đường gạch dưới mờ
+        val linePaint = Paint().apply { color = android.graphics.Color.LTGRAY; strokeWidth = 1f }
+        canvas.drawLine(startX, yPos + 10f, 535f, yPos + 10f, linePaint)
+        yPos += 40f
     }
 
-    // 4. Vẽ nội dung
-    val margin = 40f
-    var yPos = 60f
+    drawLineInfo("ID Tài khoản:", "#${data.id}")
+    drawLineInfo("Họ và Tên:", data.hoTen)
+    drawLineInfo("Tên đăng nhập:", data.tenDangNhap)
+    drawLineInfo("Email:", data.email)
+    drawLineInfo("Số điện thoại:", data.soDienThoai)
 
-    // Tiêu đề
-    canvas.drawText("BÁO CÁO DỮ LIỆU TÀI KHOẢN", margin, yPos, titlePaint)
-    yPos += 40
+    // Xử lý ngày tham gia (Cần đảm bảo API trả về trường này hoặc UserData có trường này)
+    // Giả sử bạn đã thêm `ngay_tao` vào UserData trong bước 2
+    drawLineInfo("Ngày đăng ký:", data.thoiGianThamGia) // Hoặc data.ngayTaoGoc nếu bạn map thêm
+    drawLineInfo("Đã tham gia:", data.thoiGianThamGia)
 
-    // Ảnh đại diện (nếu có)
-    avatarBitmap?.let {
-        try {
-            val scaledBitmap = Bitmap.createScaledBitmap(it, 100, 100, true)
-            canvas.drawBitmap(scaledBitmap, margin, yPos, null)
-            yPos += 120 // Tăng Y pos sau khi vẽ ảnh
-        } catch (e: Exception) {
-            Log.e("PdfAvatarError", "Vẽ bitmap lên canvas thất bại: ${e.message}")
-        }
-    }
+    // Footer
+    val footerPaint = Paint().apply { textSize = 12f; color = android.graphics.Color.GRAY; textAlign = Paint.Align.CENTER }
+    canvas.drawText("Được xuất từ ứng dụng StudyChessApp", 595f / 2, 800f, footerPaint)
 
-    // Thông tin chi tiết
-    fun drawDetail(label: String, value: String?) {
-        canvas.drawText(label, margin, yPos, labelPaint)
-        canvas.drawText(value ?: "N/A", margin + 100, yPos, valuePaint)
-        yPos += 20
-    }
-
-    drawDetail("ID Tài khoản:", data.id.toString())
-    drawDetail("Tên đăng nhập:", data.tenDangNhap)
-    drawDetail("Họ tên:", data.hoTen)
-    drawDetail("Email:", data.email)
-    drawDetail("Số điện thoại:", data.soDienThoai)
-    drawDetail("Đường dẫn Avatar:", data.avatarUrl)
-
-    // 5. Kết thúc và Lưu tệp
     pdfDocument.finishPage(page)
     pdfDocument.writeTo(outputStream)
     pdfDocument.close()

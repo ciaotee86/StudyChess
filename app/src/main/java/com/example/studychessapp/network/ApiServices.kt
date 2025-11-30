@@ -15,6 +15,7 @@ interface ApiServices {
         @Part("email") email: RequestBody,
         @Part("sdt") sdt: RequestBody,
         @Part("password") password: RequestBody,
+        @Part("ho_ten") hoTen: RequestBody, // Tên biến này phải trùng với tên gọi ở RegisterDialog
         @Part file: MultipartBody.Part? = null
     ): Response<ApiResponse>
 
