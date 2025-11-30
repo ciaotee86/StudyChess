@@ -1,25 +1,22 @@
 package com.example.studychessapp.screens
 
-import android.content.Context // ✅ THÊM DÒNG NÀY (cho lỗi 'Context')
-import com.example.studychessapp.R
-import android.app.Activity
-import android.content.Intent
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Paint
-import android.graphics.Rect
 import android.graphics.Typeface
-import android.graphics.pdf.PdfDocument
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.pdf.PdfDocument
 import android.net.Uri
+import android.os.Environment
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,360 +26,345 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.request.SuccessResult
+import com.example.studychessapp.R
+import com.example.studychessapp.model.ApiResponse
+import com.example.studychessapp.model.UserData
 import com.example.studychessapp.network.ApiServices
-import com.example.studychessapp.network.AuthViewModel
 import com.example.studychessapp.network.RetrofitClient
-import com.example.studychessapp.network.UserData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.concurrent.TimeUnit
 
+// --- 1. CÁC HÀM XỬ LÝ THỜI GIAN (Helper Functions) ---
 
-@OptIn(ExperimentalMaterial3Api::class)
+// Chuyển đổi String MySQL (yyyy-MM-dd HH:mm:ss) sang HH:mm:ss dd/MM/yyyy
+fun formatDateTime(dateString: String?): String {
+    if (dateString.isNullOrEmpty()) return "Không xác định"
+    return try {
+        // Định dạng của MySQL trả về
+        val parser = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        // Định dạng mong muốn hiển thị: Giờ:Phút:Giây Ngày/Tháng/Năm
+        val formatter = SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault())
+        val date = parser.parse(dateString)
+        formatter.format(date ?: Date())
+    } catch (e: Exception) {
+        dateString // Trả về nguyên gốc nếu lỗi parse
+    }
+}
+
+// Tính khoảng thời gian từ lúc đăng ký đến hiện tại
+fun calculateDuration(dateString: String?): String {
+    if (dateString.isNullOrEmpty()) return "Vừa tham gia"
+    return try {
+        val parser = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        val startDate = parser.parse(dateString) ?: return "Lỗi ngày"
+        val endDate = Date() // Thời gian hiện tại
+
+        var diff = endDate.time - startDate.time
+        if (diff < 0) diff = 0
+
+        val days = TimeUnit.MILLISECONDS.toDays(diff)
+        val hours = TimeUnit.MILLISECONDS.toHours(diff) % 24
+        val minutes = TimeUnit.MILLISECONDS.toMinutes(diff) % 60
+        val seconds = TimeUnit.MILLISECONDS.toSeconds(diff) % 60
+
+        // Logic hiển thị đẹp
+        when {
+            days > 365 -> "${days / 365} năm ${(days % 365) / 30} tháng"
+            days > 30 -> "${days / 30} tháng ${days % 30} ngày"
+            days > 0 -> "$days ngày $hours giờ"
+            hours > 0 -> "$hours giờ $minutes phút"
+            else -> "$minutes phút $seconds giây"
+        }
+    } catch (e: Exception) {
+        "Không xác định"
+    }
+}
+
 @Composable
-fun ProfileScreen(
-    navController: NavController,
-    authViewModel: AuthViewModel = viewModel()
-) {
-    val userSession by authViewModel.userSession.collectAsState()
-    val isLoggedIn = userSession.isLoggedIn
-    val userData = userSession.userData
-
+fun ProfileScreen(navController: NavController, userData: UserData?) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val imageLoader = ImageLoader(context)
-    val api = RetrofitClient.instance.create(ApiServices::class.java) // ✅ Khởi tạo API
+    // Sử dụng currentUserData để UI tự cập nhật khi thay đổi ảnh
+    var currentUser by remember { mutableStateOf(userData) }
 
-    // ✅ State để giữ file Uri đã chọn
-    var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
-    var isUploading by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isLoggedIn) {
-        if (!isLoggedIn) {
-            navController.navigate("home") {
-                popUpTo("home") { inclusive = true }
-            }
-        }
-    }
-
-    // ✅ Launcher để chọn ảnh
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        selectedFileUri = uri
-    }
-
-    // ✅ Launcher để xuất PDF (từ mã trước)
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.let { uri ->
-                scope.launch {
-                    try {
-                        val outputStream = context.contentResolver.openOutputStream(uri) as FileOutputStream
-                        generateAndSavePdf(context, imageLoader, userData!!, outputStream)
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Xuất PDF thành công!", Toast.LENGTH_LONG).show()
-                        }
-                    } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Lỗi khi ghi PDF: ${e.message}", Toast.LENGTH_LONG).show()
-                        }
-                    }
+    // Launcher chọn ảnh
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            scope.launch {
+                uploadAvatar(context, it, currentUser?.id ?: 0) { newUrl ->
+                    // Callback khi upload thành công -> Cập nhật UI
+                    currentUser = currentUser?.copy(avatarUrl = newUrl)
                 }
             }
         }
     }
 
-    // ✅ Hàm xử lý upload
-    fun handleUpload() {
-        if (selectedFileUri == null || userData?.id == null) {
-            Toast.makeText(context, "Chưa chọn tệp hoặc lỗi user ID", Toast.LENGTH_SHORT).show()
-            return
-        }
+    // Các biến format thời gian để hiển thị
+    val formattedRegDate = remember(currentUser?.ngayTao) { formatDateTime(currentUser?.ngayTao) }
+    val durationString = remember(currentUser?.ngayTao) { calculateDuration(currentUser?.ngayTao) }
 
-        isUploading = true
-        scope.launch {
-            try {
-                // Chuyển Uri thành File
-                val file = File(context.cacheDir, "upload.tmp")
-                context.contentResolver.openInputStream(selectedFileUri!!)?.use { input ->
-                    file.outputStream().use { output -> input.copyTo(output) }
-                }
-                val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
-                val filePart = MultipartBody.Part.createFormData("file", file.name, requestFile)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F5F5))
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Hồ sơ cá nhân",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF333333),
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
 
-                // Tạo RequestBody cho userId
-                val userIdPart = userData.id.toString().toRequestBody("text/plain".toMediaTypeOrNull())
-
-                // Gọi API
-                val response = api.updateAvatar(userIdPart, filePart)
-
-                if (response.isSuccessful && response.body()?.status == "success" && response.body()?.user != null) {
-                    // Cập nhật AuthViewModel với dữ liệu mới
-                    authViewModel.setLoggedIn(response.body()!!.user!!)
-                    Toast.makeText(context, "Cập nhật avatar thành công!", Toast.LENGTH_SHORT).show()
-                    selectedFileUri = null // Reset Uri
-                } else {
-                    Toast.makeText(context, "Lỗi: ${response.body()?.message}", Toast.LENGTH_SHORT).show()
-                }
-
-            } catch (e: Exception) {
-                Toast.makeText(context, "Lỗi upload: ${e.message}", Toast.LENGTH_LONG).show()
-                Log.e("ProfileUpload", "Lỗi: ${e.message}")
-            } finally {
-                isUploading = false
-            }
-        }
-    }
-
-    fun startExportProcess() {
-        if (userData == null) {
-            Toast.makeText(context, "Không tìm thấy dữ liệu để xuất.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "application/pdf"
-            putExtra(Intent.EXTRA_TITLE, "Chess_User_${userData.id}_Profile.pdf")
-        }
-        exportLauncher.launch(intent)
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Hồ sơ Cá nhân") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Trở về")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Hiển thị Avatar (Coil)
-            AsyncImage(
-                // ✅ Ưu tiên hiển thị ảnh mới chọn (nếu có)
-                model = selectedFileUri ?: userData?.avatarUrl,
-                contentDescription = "Avatar",
-                modifier = Modifier
-                    .size(100.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop,
-                // Hiển thị icon mặc định nếu không có avatarUrl và không có ảnh mới chọn
-                placeholder = painterResource(id = R.drawable.ic_user_account),
-                error = painterResource(id = R.drawable.ic_user_account)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = userData?.tenDangNhap ?: "Người dùng",
-                style = MaterialTheme.typography.headlineMedium
-            )
-
-            Divider(modifier = Modifier.padding(vertical = 16.dp))
-
-            ProfileDetail(label = "ID", value = userData?.id?.toString() ?: "N/A")
-            ProfileDetail(label = "Họ tên", value = userData?.hoTen ?: "N/A")
-            ProfileDetail(label = "Email", value = userData?.email ?: "N/A")
-            ProfileDetail(label = "SĐT", value = userData?.soDienThoai ?: "N/A")
-            ProfileDetail(label = "Ngày đăng ký", value = userData?.ngayTaoGoc ?: "N/A")
-            ProfileDetail(
-                label = "Đã tham gia",
-                value = userData?.thoiGianThamGia ?: "N/A" // Lấy thẳng từ UserData
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // --- ✅ NÚT UPLOAD MỚI ---
-            if (selectedFileUri == null) {
-                // Nút 1: Chọn ảnh
-                Button(
-                    onClick = { imagePickerLauncher.launch("image/*") },
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
-                ) {
-                    Text("Đổi Ảnh Đại Diện")
-                }
+        // --- AVATAR ---
+        Box(contentAlignment = Alignment.BottomEnd) {
+            if (currentUser?.avatarUrl != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(currentUser!!.avatarUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Avatar",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape)
+                        .clickable { launcher.launch("image/*") } // Bấm vào ảnh để đổi
+                )
             } else {
-                // Nút 2: Xác nhận upload
-                Button(
-                    onClick = { handleUpload() },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    enabled = !isUploading
-                ) {
-                    if (isUploading) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
-                    } else {
-                        Text("Lưu Ảnh Mới")
+                Image(
+                    painter = painterResource(id = R.drawable.ic_user_account), // Đảm bảo có ảnh placeholder này
+                    contentDescription = "Avatar Default",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape)
+                        .clickable { launcher.launch("image/*") }
+                )
+            }
+            // Icon máy ảnh nhỏ (tùy chọn)
+            Icon(
+                painter = painterResource(id = android.R.drawable.ic_menu_camera),
+                contentDescription = "Edit",
+                tint = Color.White,
+                modifier = Modifier
+                    .background(Color.Blue, CircleShape)
+                    .padding(4.dp)
+                    .size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = currentUser?.hoTen ?: "Chưa cập nhật tên",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // --- THÔNG TIN CHI TIẾT ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                ProfileItem(label = "Email", value = currentUser?.email)
+                Divider()
+                ProfileItem(label = "Số điện thoại", value = currentUser?.soDienThoai)
+                Divider()
+                // Sử dụng hàm formatDateTime cho giao diện
+                ProfileItem(label = "Ngày đăng ký", value = formattedRegDate)
+                Divider()
+                // Sử dụng hàm calculateDuration cho giao diện
+                ProfileItem(label = "Đã tham gia", value = durationString)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Nút Xuất PDF
+        Button(
+            onClick = {
+                scope.launch(Dispatchers.IO) {
+                    if (currentUser != null) {
+                        exportPdf(context, currentUser!!)
                     }
                 }
-                // Nút 3: Hủy
-                TextButton(onClick = { selectedFileUri = null }) {
-                    Text("Hủy")
-                }
-            }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Xuất thông tin PDF")
+        }
 
-            Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-            // --- CÁC NÚT CŨ ---
-            Button(
-                onClick = { authViewModel.logout() },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Đăng Xuất")
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Button(
-                onClick = { startExportProcess() },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-            ) {
-                Text("📁 Xuất Dữ Liệu Tài Khoản (.pdf)")
-            }
+        Button(
+            onClick = { navController.popBackStack() },
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Gray),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Quay lại")
         }
     }
 }
 
-// (Hàm generateAndSavePdf và ProfileDetail giữ nguyên như câu trả lời trước)
-// ...
 @Composable
-fun ProfileDetail(label: String, value: String) {
+fun ProfileItem(label: String, value: String?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, style = MaterialTheme.typography.titleMedium, color = Color.Gray)
-        Text(value, style = MaterialTheme.typography.titleMedium)
+        Text(text = label, color = Color.Gray)
+        Text(text = value ?: "---", fontWeight = FontWeight.SemiBold)
     }
 }
 
-// Trong ProfileScreen.kt
+// --- LOGIC UPLOAD ẢNH ---
+suspend fun uploadAvatar(context: Context, uri: Uri, userId: Int, onSuccess: (String) -> Unit) {
+    try {
+        val file = File(context.cacheDir, "temp_avatar.jpg")
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            file.outputStream().use { output -> input.copyTo(output) }
+        }
 
-private suspend fun generateAndSavePdf(
-    context: Context,
-    imageLoader: ImageLoader,
-    data: UserData,
-    outputStream: FileOutputStream
-) {
-    val pdfDocument = PdfDocument()
-    val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 size
-    val page = pdfDocument.startPage(pageInfo)
-    val canvas = page.canvas
+        val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
+        val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
+        val userIdPart = RequestBody.create("text/plain".toMediaTypeOrNull(), userId.toString())
 
-    // --- SETUP PAINTS ---
-    val titlePaint = Paint().apply {
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textSize = 24f
-        color = android.graphics.Color.BLUE
-        textAlign = Paint.Align.CENTER
+        val api = RetrofitClient.instance.create(ApiServices::class.java)
+        // Gọi đến API updateAvatar
+        val response = api.updateAvatar(userIdPart, body)
+
+        if (response.isSuccessful && response.body()?.status == "success") {
+            val newUrl = response.body()?.avatarUrl
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Cập nhật ảnh thành công!", Toast.LENGTH_SHORT).show()
+                if (newUrl != null) onSuccess(newUrl)
+            }
+        } else {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Lỗi server: ${response.body()?.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    } catch (e: Exception) {
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "Lỗi upload: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
+}
 
-    val labelPaint = Paint().apply {
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textSize = 14f
-        color = android.graphics.Color.DKGRAY
-    }
+// --- LOGIC XUẤT PDF ---
+suspend fun exportPdf(context: Context, user: UserData) {
+    try {
+        val pdfDocument = PdfDocument()
+        val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+        val page = pdfDocument.startPage(pageInfo)
+        val canvas = page.canvas
+        val paint = Paint()
 
-    val valuePaint = Paint().apply {
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        textSize = 14f
-        color = android.graphics.Color.BLACK
-    }
+        // 1. Tiêu đề
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        paint.textSize = 24f
+        paint.color = android.graphics.Color.BLACK
+        paint.textAlign = Paint.Align.CENTER
+        canvas.drawText("HỒ SƠ THÀNH VIÊN", 595f / 2, 80f, paint)
 
-    val borderPaint = Paint().apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 2f
-        color = android.graphics.Color.BLACK
-    }
-
-    // --- VẼ KHUNG VIỀN ---
-    canvas.drawRect(20f, 20f, 575f, 822f, borderPaint)
-
-    // --- VẼ TIÊU ĐỀ ---
-    canvas.drawText("HỒ SƠ CÁ NHÂN STUDY CHESS", 595f / 2, 80f, titlePaint)
-
-    var yPos = 140f
-    val startX = 60f
-
-    // --- VẼ AVATAR (Căn giữa) ---
-    val avatarBitmap: Bitmap? = try {
-        if (data.avatarUrl != null) {
+        // 2. Vẽ Avatar (nếu có)
+        var yPos = 120f
+        val imageLoader = ImageLoader(context)
+        if (!user.avatarUrl.isNullOrEmpty()) {
             val request = ImageRequest.Builder(context)
-                .data(data.avatarUrl)
-                .allowHardware(false)
+                .data(user.avatarUrl)
+                .allowHardware(false) // Bắt buộc cho Canvas
                 .build()
-            val result = (imageLoader.execute(request) as SuccessResult).drawable
-            (result as BitmapDrawable).bitmap
-        } else null
-    } catch (e: Exception) { null }
+            val result = (imageLoader.execute(request) as? SuccessResult)?.drawable
+            val bitmap = (result as? BitmapDrawable)?.bitmap
 
-    if (avatarBitmap != null) {
-        val scaledBitmap = Bitmap.createScaledBitmap(avatarBitmap, 120, 120, true)
-        // Vẽ ảnh ở giữa trang
-        canvas.drawBitmap(scaledBitmap, (595f - 120f) / 2, yPos, null)
-        yPos += 150f
-    } else {
-        yPos += 20f
+            if (bitmap != null) {
+                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, 100, 100, true)
+                canvas.drawBitmap(scaledBitmap, (595f - 100f) / 2, yPos, null)
+                yPos += 120f
+            }
+        } else {
+            yPos += 20f
+        }
+
+        // 3. Vẽ thông tin
+        paint.textAlign = Paint.Align.LEFT
+        val startX = 50f
+        val lineSpacing = 40f
+
+        fun drawLine(label: String, content: String) {
+            paint.textSize = 14f
+            paint.typeface = Typeface.DEFAULT_BOLD
+            paint.color = android.graphics.Color.DKGRAY
+            canvas.drawText(label, startX, yPos, paint)
+
+            paint.typeface = Typeface.DEFAULT
+            paint.color = android.graphics.Color.BLACK
+            // Canh lề nội dung cách nhãn 150 đơn vị
+            canvas.drawText(content, startX + 150f, yPos, paint)
+
+            // Kẻ đường gạch dưới mờ
+            paint.color = android.graphics.Color.LTGRAY
+            paint.strokeWidth = 1f
+            canvas.drawLine(startX, yPos + 10f, 595f - 50f, yPos + 10f, paint)
+
+            yPos += lineSpacing
+        }
+
+        drawLine("Họ và Tên:", user.hoTen ?: "---")
+        drawLine("Email:", user.email ?: "---")
+        drawLine("Số điện thoại:", user.soDienThoai ?: "---")
+
+        // --- XỬ LÝ YÊU CẦU: FORMAT NGÀY GIỜ CHÍNH XÁC ---
+        drawLine("Ngày đăng ký:", formatDateTime(user.ngayTao))
+
+        // --- XỬ LÝ YÊU CẦU: THỜI GIAN THAM GIA ---
+        drawLine("Đã tham gia:", calculateDuration(user.ngayTao))
+
+        // --- ĐÃ BỎ DÒNG TÊN ĐĂNG NHẬP THEO YÊU CẦU ---
+
+        pdfDocument.finishPage(page)
+
+        // Lưu file
+        val fileName = "Profile_${System.currentTimeMillis()}.pdf"
+        val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
+        pdfDocument.writeTo(FileOutputStream(file))
+        pdfDocument.close()
+
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "Đã xuất PDF: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        }
+    } catch (e: Exception) {
+        Log.e("PDFError", e.message.toString())
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "Lỗi xuất PDF: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
-
-    // --- VẼ THÔNG TIN CHI TIẾT ---
-    fun drawLineInfo(label: String, value: String?) {
-        canvas.drawText(label, startX, yPos, labelPaint)
-        // Vẽ giá trị cách lề trái 200 đơn vị
-        canvas.drawText(value ?: "Chưa cập nhật", startX + 150f, yPos, valuePaint)
-        // Vẽ đường gạch dưới mờ
-        val linePaint = Paint().apply { color = android.graphics.Color.LTGRAY; strokeWidth = 1f }
-        canvas.drawLine(startX, yPos + 10f, 535f, yPos + 10f, linePaint)
-        yPos += 40f
-    }
-
-    drawLineInfo("ID Tài khoản:", "#${data.id}")
-    drawLineInfo("Họ và Tên:", data.hoTen)
-    drawLineInfo("Tên đăng nhập:", data.tenDangNhap)
-    drawLineInfo("Email:", data.email)
-    drawLineInfo("Số điện thoại:", data.soDienThoai)
-
-    // Xử lý ngày tham gia (Cần đảm bảo API trả về trường này hoặc UserData có trường này)
-    // Giả sử bạn đã thêm `ngay_tao` vào UserData trong bước 2
-    drawLineInfo("Ngày đăng ký:", data.thoiGianThamGia) // Hoặc data.ngayTaoGoc nếu bạn map thêm
-    drawLineInfo("Đã tham gia:", data.thoiGianThamGia)
-
-    // Footer
-    val footerPaint = Paint().apply { textSize = 12f; color = android.graphics.Color.GRAY; textAlign = Paint.Align.CENTER }
-    canvas.drawText("Được xuất từ ứng dụng StudyChessApp", 595f / 2, 800f, footerPaint)
-
-    pdfDocument.finishPage(page)
-    pdfDocument.writeTo(outputStream)
-    pdfDocument.close()
-    outputStream.close()
 }
