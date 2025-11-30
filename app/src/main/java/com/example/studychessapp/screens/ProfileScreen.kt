@@ -212,7 +212,10 @@ fun ProfileScreen(
             ProfileDetail(label = "Họ tên", value = userData?.hoTen ?: "N/A")
             ProfileDetail(label = "Email", value = userData?.email ?: "N/A")
             ProfileDetail(label = "SĐT", value = userData?.soDienThoai ?: "N/A")
-
+            ProfileDetail(
+                label = "Đã tham gia",
+                value = userData?.thoiGianThamGia ?: "N/A" // Lấy thẳng từ UserData
+            )
             Spacer(modifier = Modifier.height(32.dp))
 
             // --- ✅ NÚT UPLOAD MỚI ---

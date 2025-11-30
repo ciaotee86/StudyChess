@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
+
 // --- 1.  DATA CLASS USERDATA  ---
 
 data class ApiResponse(
@@ -27,7 +28,9 @@ data class UserData(
     @SerializedName("ho_ten")
     val hoTen: String?,
     @SerializedName("duong_dan_anh")
-    val avatarUrl: String? = null
+    val avatarUrl: String? = null,
+    @SerializedName("thoi_gian_tham_gia")
+    val thoiGianThamGia: String? = null
 )
 
 // --- 2. DATA CLASS USERSESSION (Thêm userData: UserData?) ---
