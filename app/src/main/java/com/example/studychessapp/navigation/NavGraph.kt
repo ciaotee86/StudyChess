@@ -1,6 +1,8 @@
 package com.example.studychessapp.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -8,9 +10,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.studychessapp.network.AuthViewModel
 import com.example.studychessapp.screens.HomeScreen
-import com.example.studychessapp.ui.ChessBoard
+import com.example.studychessapp.screens.LessonListScreen
 import com.example.studychessapp.screens.LessonScreen
-import com.example.studychessapp.screens.LessonListScreen // ✅ THÊM IMPORT
 import com.example.studychessapp.screens.PlayWithAIScreen
 import com.example.studychessapp.screens.PracticeBoardScreen
 import com.example.studychessapp.screens.ProfileScreen
@@ -28,15 +29,30 @@ fun NavGraph(
         }
 
         composable("profile") {
-            ProfileScreen(navController = navController, authViewModel = authViewModel)
+            val userSession by authViewModel.userSession.collectAsState()
+
+            ProfileScreen(
+                navController = navController,
+                userData = userSession.userData,
+                onLogout = {
+                    // Xử lý đăng xuất
+                    authViewModel.logout()
+                    // Quay về màn hình Home và xóa backstack để không back lại được Profile
+                    navController.navigate("home") {
+                        popUpTo("home") { inclusive = true }
+                    }
+                },
+                onUserUpdated = { newUser ->
+                    // Cập nhật lại ViewModel khi có thay đổi (ví dụ đổi avatar)
+                    authViewModel.updateUser(newUser)
+                }
+            )
         }
 
-        // ✅ SỬA "lesson" thành "lesson_list"
         composable("lesson_list") {
             LessonListScreen(navController = navController)
         }
 
-        // ✅ THÊM TUYẾN MỚI cho chi tiết bài học
         composable(
             "lesson_detail/{lessonId}",
             arguments = listOf(navArgument("lessonId") { type = NavType.StringType })

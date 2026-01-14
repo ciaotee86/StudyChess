@@ -1,6 +1,5 @@
 package com.example.studychessapp.network
 
-import com.example.studychessapp.network.ApiResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -15,11 +14,10 @@ interface ApiServices {
         @Part("email") email: RequestBody,
         @Part("sdt") sdt: RequestBody,
         @Part("password") password: RequestBody,
-        @Part("ho_ten") hoTen: RequestBody, // Tên biến này phải trùng với tên gọi ở RegisterDialog
+        @Part("ho_ten") hoTen: RequestBody,
         @Part file: MultipartBody.Part? = null
     ): Response<ApiResponse>
 
-    // API đăng nhập
     @FormUrlEncoded
     @POST("login.php")
     suspend fun loginUser(
@@ -27,12 +25,18 @@ interface ApiServices {
         @Field("password") password: String
     ): Response<ApiResponse>
 
-    // ✅ HÀM MỚI: CẬP NHẬT AVATAR
-    // (Giả sử API của bạn nhận 'userId' và 'file')
     @Multipart
     @POST("updateAvatar.php")
     suspend fun updateAvatar(
         @Part("userId") userId: RequestBody,
         @Part file: MultipartBody.Part
-    ): Response<ApiResponse> // API nên trả về ApiResponse với UserData đã cập nhật
+    ): Response<ApiResponse>
+
+    // ✅ THÊM HÀM NÀY: Upload file tài liệu
+    @Multipart
+    @POST("upload_file.php")
+    suspend fun uploadFile(
+        @Part("nguoi_dung_id") userId: RequestBody,
+        @Part file: MultipartBody.Part
+    ): Response<ApiResponse>
 }
